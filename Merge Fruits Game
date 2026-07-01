@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>수박 합치기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<style>
+  :root {
+    --bg-deep: #2b1810;
+    --bg-mid: #4a2818;
+    --jar-wood: #6b3f2a;
+    --jar-wood-dark: #4a2a1a;
+    --cream: #fdf3e3;
+    --accent-red: #e8483a;
+    --accent-orange: #f2994a;
+    --accent-yellow: #f2c94c;
+    --accent-green: #6fcf5e;
+    --ink: #2b1810;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: radial-gradient(ellipse at 50% 0%, var(--bg-mid) 0%, var(--bg-deep) 70%);
+    font-family: 'Gaegu', 'Noto Sans KR', sans-serif;
+    color: var(--cream);
+    overflow: hidden;
+    touch-action: none;
+  }
+  .stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100%;
+    padding: 16px;
+    gap: 10px;
+  }
+  .title-row {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    justify-content: center;
+  }
+  h1 {
+    margin: 0;
+    font-family: 'Jua', 'Gaegu', sans-serif;
+    font-size: 28px;
+    letter-spacing: 1px;
+    color: var(--accent-yellow);
+    text-shadow: 0 2px 0 rgba(0,0,0,0.4);
+  }
+  .subtitle {
+    font-size: 12px;
+    letter-spacing: 3px;
+    color: rgba(253,243,227,0.55);
+    text-transform: uppercase;
+  }
+  .hud {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+    font-size: 14px;
+    color: rgba(253,243,227,0.85);
+  }
+  .hud .score-box {
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(253,243,227,0.15);
+    border-radius: 10px;
+    padding: 6px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 90px;
+  }
+  .hud .score-box .label { font-size: 10px; letter-spacing: 2px; opacity: 0.6; }
+  .hud .score-box .value { font-family: 'Jua', sans-serif; font-size: 20px; color: var(--accent-yellow); }
+  .next-preview {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(253,243,227,0.15);
+    border-radius: 10px;
+    padding: 6px 14px;
+  }
+  .next-preview .label { font-size: 10px; letter-spacing: 2px; opacity: 0.6; }
+  #nextCanvasWrap { width: 34px; height: 34px; display:flex; align-items:center; justify-content:center; }
+
+  .jar-wrap {
+    position: relative;
+    border-radius: 8px;
+  }
+  canvas#world {
+    display: block;
+    border-radius: 4px;
+    background: linear-gradient(180deg, #3a2418 0%, #2a1810 100%);
+    box-shadow:
+      inset 0 0 0 8px var(--jar-wood),
+      inset 0 0 0 11px var(--jar-wood-dark),
+      0 20px 50px rgba(0,0,0,0.6);
+  }
+  .danger-line {
+    position: absolute;
+    left: 8px; right: 8px;
+    height: 2px;
+    background: repeating-linear-gradient(90deg, rgba(232,72,58,0.7) 0 8px, transparent 8px 16px);
+    pointer-events: none;
+  }
+  .footer-msg {
+    font-size: 12px;
+    color: rgba(253,243,227,0.5);
+    letter-spacing: 1px;
+    text-align: center;
+  }
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(20,10,6,0.88);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    gap: 14px;
+    text-align: center;
+    padding: 20px;
+  }
+  .overlay.show { display: flex; }
+  .overlay h2 {
+    margin: 0;
+    font-family: 'Jua', sans-serif;
+    font-size: 28px;
+    color: var(--accent-red);
+    letter-spacing: 1px;
+  }
+  .overlay .final-score { font-family: 'Jua', sans-serif; font-size: 40px; color: var(--accent-yellow); }
+  .btn {
+    background: var(--accent-orange);
+    border: none;
+    color: var(--ink);
+    font-family: 'Jua', sans-serif;
+    padding: 10px 26px;
+    border-radius: 24px;
+    font-size: 15px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    box-shadow: 0 4px 0 #c9701f;
+    transition: transform 0.08s ease;
+  }
+  .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #c9701f; }
+
+  .combo-float {
+    position: absolute;
+    font-family: 'Jua', sans-serif;
+    color: var(--accent-yellow);
+    text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+    pointer-events: none;
+    animation: floatUp 0.8s ease-out forwards;
+    font-size: 18px;
+  }
+  @keyframes floatUp {
+    0% { opacity: 1; transform: translateY(0) scale(0.8); }
+    100% { opacity: 0; transform: translateY(-40px) scale(1.3); }
+  }
+
+  /* ---- 과일 단계 일람표 ---- */
+  .chart-wrap {
+    max-width: 380px;
+    width: 100%;
+  }
+  .chart-title {
+    font-family: 'Jua', sans-serif;
+    font-size: 13px;
+    letter-spacing: 1px;
+    color: rgba(253,243,227,0.7);
+    padding: 0 2px 6px;
+    text-align: center;
+  }
+  .chart-panel {
+    background: rgba(0,0,0,0.22);
+    border: 1px solid rgba(253,243,227,0.12);
+    border-radius: 10px;
+    padding: 12px 10px;
+  }
+  .chart-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px 2px;
+  }
+  .chart-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    width: 46px;
+  }
+  .chart-item .dot {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .chart-item .nm {
+    font-size: 9px;
+    text-align: center;
+    color: rgba(253,243,227,0.85);
+    letter-spacing: 0;
+    line-height: 1.1;
+  }
+  .chart-item .lv {
+    font-family: 'Jua', sans-serif;
+    font-size: 9px;
+    color: rgba(253,243,227,0.45);
+  }
+  .chart-arrow {
+    font-size: 12px;
+    color: rgba(253,243,227,0.35);
+    flex-shrink: 0;
+    margin: 0 -1px;
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="title-row">
+    <h1>🍉 수박 합치기</h1>
+    <span class="subtitle">Fruit Merge</span>
+  </div>
+
+  <div class="hud">
+    <div class="score-box">
+      <span class="label">점수</span>
+      <span class="value" id="scoreVal">0</span>
+    </div>
+    <div class="next-preview">
+      <span class="label">다음</span>
+      <div id="nextCanvasWrap"><canvas id="nextCanvas" width="34" height="34"></canvas></div>
+    </div>
+    <div class="score-box">
+      <span class="label">최고점수</span>
+      <span class="value" id="bestVal">0</span>
+    </div>
+  </div>
+
+  <div class="jar-wrap" id="jarWrap">
+    <canvas id="world" width="380" height="520"></canvas>
+    <div class="danger-line" style="top: 70px;"></div>
+    <div class="overlay" id="overlay">
+      <h2>게임 오버</h2>
+      <div class="final-score" id="finalScore">0</div>
+      <button class="btn" id="restartBtn">다시 하기</button>
+    </div>
+  </div>
+
+  <div class="footer-msg">마우스(또는 터치)를 움직여 위치를 정하고 클릭해서 떨어뜨리세요 · 같은 과일끼리 만나면 합쳐집니다</div>
+
+  <div class="chart-wrap">
+    <div class="chart-title">과일 합성 일람표</div>
+    <div class="chart-panel open" id="chartPanel">
+      <div class="chart-row" id="chartRow"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const { Engine, Render, Runner, World, Bodies, Body, Events, Composite, Query, Vector } = Matter;
+
+  // ---- 과일 정의: 반지름, 색상, 이름 (이미지는 벡터로 직접 그림) ----
+  const FRUITS = [
+    { r: 14, color: '#e35d6a', color2:'#b8323f', name: '체리',     score: 1  },
+    { r: 20, color: '#ff5a6e', color2:'#c2273f', name: '딸기',     score: 3  },
+    { r: 27, color: '#9b7bc4', color2:'#6a4a8c', name: '포도',     score: 6  },
+    { r: 34, color: '#f5a041', color2:'#d97a1f', name: '귤',       score: 10 },
+    { r: 42, color: '#e5493a', color2:'#a82c1f', name: '사과',     score: 15 },
+    { r: 52, color: '#dce89a', color2:'#a9bd5e', name: '배',       score: 21 },
+    { r: 63, color: '#f7b26a', color2:'#dd7f2a', name: '복숭아',   score: 28 },
+    { r: 75, color: '#f2c94c', color2:'#c98a1f', name: '파인애플', score: 36 },
+    { r: 90, color: '#8fce6a', color2:'#4a8c2f', name: '멜론',     score: 45 },
+    { r: 108,color: '#9a6a42', color2:'#5c3a20', name: '코코넛',   score: 55 },
+    { r: 130,color: '#4a9c3a', color2:'#245a18', name: '수박',     score: 66 },
+  ];
+
+  const W = 380, H = 520;
+  const WALL_T = 0;
+  const DANGER_Y = 70;
+
+  const canvas = document.getElementById('world');
+  const engine = Engine.create();
+  engine.gravity.y = 1.1;
+  const world = engine.world;
+
+  const render = Render.create({
+    canvas: canvas,
+    engine: engine,
+    options: {
+      width: W, height: H,
+      wireframes: false,
+      background: 'transparent',
+    }
+  });
+  Render.run(render);
+  const runner = Runner.create();
+  Runner.run(runner, engine);
+
+  // ---- 과일 벡터 아이콘 그리기 (폰트/이모지 미사용, 어떤 환경에서도 표시됨) ----
+  function baseCircle(ctx, r, cLight, cDark) {
+    const grad = ctx.createRadialGradient(-r*0.32, -r*0.38, r*0.15, 0, 0, r*1.05);
+    grad.addColorStop(0, cLight);
+    grad.addColorStop(1, cDark);
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+  function highlight(ctx, r) {
+    ctx.beginPath();
+    ctx.ellipse(-r*0.35, -r*0.4, r*0.28, r*0.16, -0.6, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.fill();
+  }
+  function stemLeaf(ctx, r, stemColor, leafColor, leafSide) {
+    const side = leafSide || 1;
+    ctx.strokeStyle = stemColor;
+    ctx.lineWidth = Math.max(1, r*0.1);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(0, -r*0.92);
+    ctx.quadraticCurveTo(r*0.05*side, -r*1.1, r*0.02*side, -r*1.28);
+    ctx.stroke();
+    ctx.fillStyle = leafColor;
+    ctx.beginPath();
+    ctx.ellipse(r*0.32*side, -r*1.12, r*0.3, r*0.15, -0.5*side, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  function drawFruitIcon(ctx, tier, cx, cy, r, angle) {
+    const f = FRUITS[tier];
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle || 0);
+
+    switch (tier) {
+      case 0: { // 체리
+        ctx.save(); ctx.translate(-r*0.32, r*0.18);
+        baseCircle(ctx, r*0.62, '#ff7a86', f.color2); highlight(ctx, r*0.62);
+        ctx.restore();
+        ctx.save(); ctx.translate(r*0.34, r*0.32);
+        baseCircle(ctx, r*0.62, '#ff7a86', f.color2); highlight(ctx, r*0.62);
+        ctx.restore();
+        ctx.strokeStyle = '#6b4a2a'; ctx.lineWidth = Math.max(1, r*0.09); ctx.lineCap='round';
+        ctx.beginPath(); ctx.moveTo(-r*0.32, r*0.18 - r*0.55); ctx.quadraticCurveTo(-r*0.1, -r*0.75, r*0.05, -r*0.95); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(r*0.34, r*0.32 - r*0.55); ctx.quadraticCurveTo(r*0.15, -r*0.7, r*0.05, -r*0.95); ctx.stroke();
+        ctx.fillStyle = '#4a9c3a';
+        ctx.beginPath(); ctx.ellipse(r*0.3, -r*1.0, r*0.28, r*0.14, -0.5, 0, Math.PI*2); ctx.fill();
+        break;
+      }
+      case 1: { // 딸기
+        const grad = ctx.createRadialGradient(-r*0.3,-r*0.3,r*0.1,0,0,r*1.05);
+        grad.addColorStop(0, '#ff7a86'); grad.addColorStop(1, f.color2);
+        ctx.beginPath();
+        ctx.moveTo(0, r*1.05);
+        ctx.bezierCurveTo(r*1.05, r*0.75, r*0.9, -r*0.55, 0, -r*0.6);
+        ctx.bezierCurveTo(-r*0.9, -r*0.55, -r*1.05, r*0.75, 0, r*1.05);
+        ctx.fillStyle = grad; ctx.fill();
+        ctx.fillStyle = 'rgba(255,230,150,0.9)';
+        const seeds = [[-0.35,-0.1],[0.1,-0.25],[0.4,0.05],[-0.15,0.3],[0.3,0.45],[-0.4,0.5],[0,0.65]];
+        seeds.forEach(([sx,sy]) => { ctx.beginPath(); ctx.ellipse(sx*r, sy*r, r*0.05, r*0.08, 0.3, 0, Math.PI*2); ctx.fill(); });
+        ctx.fillStyle = '#4a9c3a';
+        for (let i=-2;i<=2;i++) {
+          ctx.beginPath();
+          ctx.moveTo(i*r*0.14, -r*0.58);
+          ctx.lineTo(i*r*0.2, -r*0.98 - Math.abs(i)*r*0.05);
+          ctx.lineTo(i*r*0.14 + r*0.12, -r*0.58);
+          ctx.closePath(); ctx.fill();
+        }
+        break;
+      }
+      case 2: { // 포도
+        const positions = [[0,-0.45],[-0.42,-0.05],[0.42,-0.05],[-0.22,0.35],[0.22,0.35],[0,0.75],[-0.5,0.45],[0.5,0.45]];
+        positions.forEach(([px,py]) => {
+          ctx.save(); ctx.translate(px*r, py*r);
+          baseCircle(ctx, r*0.36, '#c4a3e8', f.color2);
+          highlight(ctx, r*0.36);
+          ctx.restore();
+        });
+        ctx.strokeStyle = '#6b4a2a'; ctx.lineWidth = Math.max(1, r*0.08); ctx.lineCap='round';
+        ctx.beginPath(); ctx.moveTo(0,-r*0.9); ctx.lineTo(0,-r*1.15); ctx.stroke();
+        ctx.fillStyle = '#4a9c3a';
+        ctx.beginPath(); ctx.ellipse(r*0.22,-r*1.1, r*0.24, r*0.13, -0.4, 0, Math.PI*2); ctx.fill();
+        break;
+      }
+      case 3: { // 귤
+        baseCircle(ctx, r, '#ffb35c', f.color2);
+        highlight(ctx, r);
+        ctx.fillStyle = 'rgba(180,100,20,0.18)';
+        const pores = [[-0.3,-0.25],[0.15,-0.35],[0.35,-0.05],[-0.1,0.15],[0.25,0.35],[-0.35,0.3],[0,0.45],[-0.15,-0.55],[0.4,0.55]];
+        pores.forEach(([px,py]) => {
+          ctx.beginPath();
+          ctx.arc(px*r, py*r, r*0.045, 0, Math.PI*2);
+          ctx.fill();
+        });
+        ctx.fillStyle = '#6b4a2a';
+        ctx.beginPath(); ctx.ellipse(0,-r*0.98, r*0.09, r*0.14, 0,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#4a9c3a';
+        ctx.beginPath(); ctx.ellipse(r*0.3,-r*1.05, r*0.28, r*0.14, -0.5, 0, Math.PI*2); ctx.fill();
+        break;
+      }
+      case 4: { // 사과
+        ctx.save();
+        baseCircle(ctx, r, '#ff6a52', f.color2);
+        ctx.restore();
+        // 위쪽 하트형 홈
+        ctx.fillStyle = 'rgba(0,0,0,0)';
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(0, -r*0.85);
+        ctx.quadraticCurveTo(-r*0.12, -r*1.05, 0, -r*0.98);
+        ctx.quadraticCurveTo(r*0.12, -r*1.05, 0, -r*0.85);
+        ctx.fillStyle = f.color2;
+        ctx.fill();
+        ctx.restore();
+        highlight(ctx, r);
+        ctx.strokeStyle = '#6b4a2a'; ctx.lineWidth = Math.max(1, r*0.09); ctx.lineCap='round';
+        ctx.beginPath(); ctx.moveTo(0,-r*0.95); ctx.quadraticCurveTo(r*0.06,-r*1.2, r*0.03,-r*1.35); ctx.stroke();
+        ctx.fillStyle = '#4a9c3a';
+        ctx.beginPath(); ctx.ellipse(r*0.32,-r*1.18, r*0.28, r*0.14, -0.5, 0, Math.PI*2); ctx.fill();
+        break;
+      }
+      case 5: { // 배
+        const grad = ctx.createRadialGradient(-r*0.2,-r*0.2,r*0.1,0,r*0.1,r*1.1);
+        grad.addColorStop(0, '#eef7b0'); grad.addColorStop(1, f.color2);
+        ctx.beginPath();
+        ctx.moveTo(0, -r*0.9);
+        ctx.bezierCurveTo(r*0.55, -r*0.8, r*0.42, -r*0.15, r*0.75, r*0.25);
+        ctx.bezierCurveTo(r*0.95, r*0.85, r*0.4, r*1.15, 0, r*1.15);
+        ctx.bezierCurveTo(-r*0.4, r*1.15, -r*0.95, r*0.85, -r*0.75, r*0.25);
+        ctx.bezierCurveTo(-r*0.42, -r*0.15, -r*0.55, -r*0.8, 0, -r*0.9);
+        ctx.closePath();
+        ctx.fillStyle = grad; ctx.fill();
+        highlight(ctx, r*0.8);
+        ctx.strokeStyle = '#6b4a2a'; ctx.lineWidth = Math.max(1, r*0.09); ctx.lineCap='round';
+        ctx.beginPath(); ctx.moveTo(0,-r*0.9); ctx.lineTo(r*0.05,-r*1.2); ctx.stroke();
+        ctx.fillStyle = '#4a9c3a';
+        ctx.beginPath(); ctx.ellipse(r*0.32,-r*1.12, r*0.26, r*0.13, -0.5, 0, Math.PI*2); ctx.fill();
+        break;
+      }
+      case 6: { // 복숭아
+        baseCircle(ctx, r, '#ffd0a8', f.color2);
+        ctx.fillStyle = 'rgba(230,90,70,0.35)';
+        ctx.beginPath(); ctx.ellipse(-r*0.25,-r*0.15, r*0.4, r*0.5, -0.3, 0, Math.PI*2); ctx.fill();
+        highlight(ctx, r);
+        ctx.fillStyle = '#4a9c3a';
+        ctx.beginPath(); ctx.ellipse(r*0.15,-r*1.02, r*0.24, r*0.13, -0.4, 0, Math.PI*2); ctx.fill();
+        break;
+      }
+      case 7: { // 파인애플
+        ctx.save();
+        const grad = ctx.createRadialGradient(-r*0.2,-r*0.1,r*0.1,0,0,r*1.05);
+        grad.addColorStop(0, '#ffe38a'); grad.addColorStop(1, f.color2);
+        ctx.beginPath();
+        ctx.ellipse(0, r*0.12, r*0.82, r*0.92, 0, 0, Math.PI*2);
+        ctx.fillStyle = grad; ctx.fill();
+        ctx.strokeStyle = 'rgba(150,90,10,0.35)'; ctx.lineWidth = Math.max(1, r*0.035);
+        for (let i=-3;i<=3;i++) {
+          ctx.beginPath();
+          ctx.moveTo(i*r*0.22, r*0.12 - r*0.85);
+          ctx.lineTo(i*r*0.22 + r*0.35, r*0.12 + r*0.85);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(i*r*0.22, r*0.12 - r*0.85);
+          ctx.lineTo(i*r*0.22 - r*0.35, r*0.12 + r*0.85);
+          ctx.stroke();
+        }
+        ctx.restore();
+        ctx.fillStyle = '#4a9c3a';
+        for (let i=-2;i<=2;i++) {
+          ctx.save();
+          ctx.rotate(i*0.35);
+          ctx.beginPath();
+          ctx.moveTo(0,-r*0.75);
+          ctx.lineTo(-r*0.14,-r*1.35);
+          ctx.lineTo(r*0.14,-r*1.35);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+        break;
+      }
+      case 8: { // 멜론
+        baseCircle(ctx, r, '#c9ec9a', f.color2);
+        ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = Math.max(1, r*0.035);
+        for (let i=-3;i<=3;i++) {
+          ctx.beginPath();
+          ctx.moveTo(i*r*0.24, -r*0.9);
+          ctx.quadraticCurveTo(i*r*0.24 + r*0.12, 0, i*r*0.24, r*0.9);
+          ctx.stroke();
+        }
+        for (let j=-2;j<=2;j++) {
+          ctx.beginPath();
+          ctx.moveTo(-r*0.9, j*r*0.28);
+          ctx.quadraticCurveTo(0, j*r*0.28 + r*0.1, r*0.9, j*r*0.28);
+          ctx.stroke();
+        }
+        highlight(ctx, r);
+        ctx.fillStyle = '#a06a3a';
+        ctx.beginPath(); ctx.ellipse(0,-r*0.98, r*0.1, r*0.14, 0,0,Math.PI*2); ctx.fill();
+        break;
+      }
+      case 9: { // 코코넛
+        baseCircle(ctx, r, '#c9a26a', f.color2);
+        ctx.fillStyle = 'rgba(0,0,0,0.28)';
+        ctx.beginPath(); ctx.ellipse(-r*0.28,-r*0.05,r*0.13,r*0.17,0,0,Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(r*0.28,-r*0.05,r*0.13,r*0.17,0,0,Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(0,r*0.28,r*0.14,r*0.18,0,0,Math.PI*2); ctx.fill();
+        highlight(ctx, r);
+        break;
+      }
+      default: { // 수박
+        baseCircle(ctx, r, '#8fe06a', f.color2);
+        ctx.strokeStyle = '#245a18'; ctx.lineWidth = Math.max(2, r*0.09); ctx.lineCap='round';
+        for (let i=-3;i<=3;i++) {
+          ctx.beginPath();
+          ctx.moveTo(i*r*0.26, -r*0.95);
+          ctx.quadraticCurveTo(i*r*0.26 + r*0.15, 0, i*r*0.26, r*0.95);
+          ctx.stroke();
+        }
+        highlight(ctx, r*1.1);
+        break;
+      }
+    }
+    ctx.restore();
+  }
+
+  // ---- 과일 몸체 위에 벡터 아이콘 그리기 ----
+  Events.on(render, 'afterRender', () => {
+    const ctx = render.context;
+    const bodies = Composite.allBodies(world);
+    for (const b of bodies) {
+      if (!b.isFruit) continue;
+      drawFruitIcon(ctx, b.tierIdx, b.position.x, b.position.y, b.circleRadius, 0);
+    }
+  });
+
+  // 벽
+  const wallOpts = { isStatic: true, restitution: 0.2, friction: 0.5, render: { visible: false } };
+  const ground = Bodies.rectangle(W/2, H+20, W, 40, wallOpts);
+  const leftWall = Bodies.rectangle(-10, H/2, 20, H, wallOpts);
+  const rightWall = Bodies.rectangle(W+10, H/2, 20, H, wallOpts);
+  World.add(world, [ground, leftWall, rightWall]);
+
+  let score = 0;
+  let best = 0;
+  try { best = parseInt(localStorage.getItem('watermelon_best') || '0'); } catch(e) { best = 0; }
+  document.getElementById('bestVal').textContent = best;
+
+  let gameOver = false;
+  let dropCooldown = false;
+  let currentX = W/2;
+  let nextTierIdx = randomStartTier();
+  let waitingBody = null;
+
+  function randomStartTier() {
+    return Math.floor(Math.random() * 5); // 처음 5단계 중 랜덤
+  }
+
+  function makeFruitBody(x, y, tierIdx, isStatic) {
+    const f = FRUITS[tierIdx];
+    const body = Bodies.circle(x, y, f.r, {
+      restitution: 0.15,
+      friction: 0.4,
+      frictionAir: 0.001,
+      density: 0.0018,
+      isStatic: !!isStatic,
+      render: {
+        visible: false,
+      }
+    });
+    body.tierIdx = tierIdx;
+    body.isFruit = true;
+    body.mergeLock = false;
+    return body;
+  }
+
+  function spawnWaitingFruit() {
+    waitingBody = makeFruitBody(currentX, 40, nextTierIdx, true);
+    World.add(world, waitingBody);
+  }
+
+  function drawNextPreview() {
+    const nc = document.getElementById('nextCanvas');
+    const ctx = nc.getContext('2d');
+    ctx.clearRect(0,0,34,34);
+    const f = FRUITS[nextTierIdx];
+    const scale = Math.min(1, 13 / f.r);
+    drawFruitIcon(ctx, nextTierIdx, 17, 18, f.r * scale, 0);
+  }
+
+  function pickNextTier() {
+    nextTierIdx = Math.floor(Math.random() * 5);
+    drawNextPreview();
+  }
+
+  pickNextTier();
+  spawnWaitingFruit();
+
+  function clampX(x) {
+    const f = FRUITS[waitingBody ? waitingBody.tierIdx : 0];
+    const r = f.r;
+    return Math.max(r + 4, Math.min(W - r - 4, x));
+  }
+
+  function updatePointer(clientX) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = W / rect.width;
+    const x = (clientX - rect.left) * scaleX;
+    currentX = clampX(x);
+    if (waitingBody && !gameOver) {
+      Body.setPosition(waitingBody, { x: currentX, y: waitingBody.position.y });
+    }
+  }
+
+  canvas.addEventListener('mousemove', (e) => updatePointer(e.clientX));
+  canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (e.touches[0]) updatePointer(e.touches[0].clientX);
+  }, { passive: false });
+
+  function doDrop() {
+    if (gameOver || dropCooldown || !waitingBody) return;
+    dropCooldown = true;
+    Body.setStatic(waitingBody, false);
+    waitingBody.isFruit = true;
+    waitingBody = null;
+    pickNextTier();
+    setTimeout(() => {
+      if (!gameOver) spawnWaitingFruit();
+      dropCooldown = false;
+    }, 420);
+  }
+
+  canvas.addEventListener('click', () => doDrop());
+  canvas.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    doDrop();
+  }, { passive: false });
+
+  // ---- 과일 합성 일람표 ----
+  const chartRow = document.getElementById('chartRow');
+  FRUITS.forEach((f, i) => {
+    if (i > 0) {
+      const arrow = document.createElement('span');
+      arrow.className = 'chart-arrow';
+      arrow.textContent = '→';
+      chartRow.appendChild(arrow);
+    }
+    const item = document.createElement('div');
+    item.className = 'chart-item';
+    const sizePx = 26 + i * 1.6;
+    const dotCanvas = document.createElement('canvas');
+    dotCanvas.width = sizePx;
+    dotCanvas.height = sizePx;
+    dotCanvas.style.width = sizePx + 'px';
+    dotCanvas.style.height = sizePx + 'px';
+    const dotCtx = dotCanvas.getContext('2d');
+    drawFruitIcon(dotCtx, i, sizePx/2, sizePx/2, sizePx*0.42, 0);
+    const lv = document.createElement('span');
+    lv.className = 'lv';
+    lv.textContent = 'Lv.' + (i + 1);
+    const nm = document.createElement('span');
+    nm.className = 'nm';
+    nm.textContent = f.name;
+    item.appendChild(dotCanvas);
+    item.appendChild(lv);
+    item.appendChild(nm);
+    chartRow.appendChild(item);
+  });
+
+  // ---- 합체 로직 ----
+  function spawnCombo(x, y, text) {
+    const wrap = document.getElementById('jarWrap');
+    const el = document.createElement('div');
+    el.className = 'combo-float';
+    el.textContent = text;
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    wrap.appendChild(el);
+    setTimeout(() => el.remove(), 800);
+  }
+
+  Events.on(engine, 'collisionStart', (event) => {
+    for (const pair of event.pairs) {
+      const a = pair.bodyA, b = pair.bodyB;
+      if (!a.isFruit || !b.isFruit) continue;
+      if (a.mergeLock || b.mergeLock) continue;
+      if (a.tierIdx !== b.tierIdx) continue;
+      if (a.tierIdx >= FRUITS.length - 1) continue; // 최대(수박)는 합쳐지지 않음
+
+      a.mergeLock = true;
+      b.mergeLock = true;
+
+      const midX = (a.position.x + b.position.x) / 2;
+      const midY = (a.position.y + b.position.y) / 2;
+      const newTier = a.tierIdx + 1;
+
+      World.remove(world, a);
+      World.remove(world, b);
+
+      const merged = makeFruitBody(midX, midY, newTier, false);
+      // 살짝 위로 튀는 느낌
+      Body.setVelocity(merged, { x: 0, y: -2 });
+      World.add(world, merged);
+
+      const gained = FRUITS[newTier].score;
+      score += gained;
+      document.getElementById('scoreVal').textContent = score;
+      spawnCombo(midX, midY - 10, '+' + gained);
+
+      if (newTier === FRUITS.length - 1) {
+        spawnCombo(midX, midY - 30, '🍉 수박 완성!');
+      }
+    }
+  });
+
+  // ---- 게임 오버 감지 ----
+  let overTimer = 0;
+  Events.on(engine, 'afterUpdate', () => {
+    if (gameOver) return;
+    let anyOverLine = false;
+    const bodies = Composite.allBodies(world);
+    for (const b of bodies) {
+      if (!b.isFruit || b.isStatic) continue;
+      // 정지 상태에 가깝고 danger line 위로 올라오면 위험
+      const speed = Vector.magnitude(b.velocity);
+      if (b.position.y - b.circleRadius < DANGER_Y && speed < 0.5) {
+        anyOverLine = true;
+        break;
+      }
+    }
+    if (anyOverLine) {
+      overTimer += 1;
+      if (overTimer > 90) { // 약 1.5초 유지되면 게임오버
+        triggerGameOver();
+      }
+    } else {
+      overTimer = 0;
+    }
+  });
+
+  function triggerGameOver() {
+    gameOver = true;
+    if (waitingBody) { World.remove(world, waitingBody); waitingBody = null; }
+    if (score > best) {
+      best = score;
+      try { localStorage.setItem('watermelon_best', String(best)); } catch(e) {}
+    }
+    document.getElementById('bestVal').textContent = best;
+    document.getElementById('finalScore').textContent = score;
+    document.getElementById('overlay').classList.add('show');
+  }
+
+  document.getElementById('restartBtn').addEventListener('click', () => {
+    // 모든 과일 제거
+    const bodies = Composite.allBodies(world).filter(b => b.isFruit);
+    bodies.forEach(b => World.remove(world, b));
+    score = 0;
+    document.getElementById('scoreVal').textContent = 0;
+    gameOver = false;
+    overTimer = 0;
+    dropCooldown = false;
+    document.getElementById('overlay').classList.remove('show');
+    pickNextTier();
+    spawnWaitingFruit();
+  });
+
+})();
+</script>
+</body>
+</html>
